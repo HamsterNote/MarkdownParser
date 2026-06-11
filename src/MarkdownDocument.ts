@@ -17,10 +17,10 @@ export class MarkdownDocument {
     return page ? new MarkdownPage(page) : undefined
   }
 
-  async getOutline(): Promise<IntermediateOutline | undefined> {
+  getOutline(): IntermediateOutline[] | undefined {
     const outline = this.intermediateDocument.getOutline()
     if (!outline || outline.length === 0) return undefined
-    return outline[0]
+    return outline
   }
 
   getTitle(): string {

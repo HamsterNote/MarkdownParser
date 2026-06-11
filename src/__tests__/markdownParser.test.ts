@@ -3,6 +3,8 @@ import {
 	inspectMarkdown,
 	isIntermediateTextLike,
 	MARKDOWN_PARSER_PACKAGE_NAME,
+	MarkdownDocument,
+	MarkdownPage,
 	MarkdownParser,
 	markdownParserWorkspaceStatus,
 } from "../index";
@@ -81,5 +83,86 @@ describe("MarkdownParser", () => {
 		const decoded = await parser.decode(doc);
 		const text = new TextDecoder("utf-8").decode(decoded);
 		expect(text).toContain("**Bold**");
+	});
+});
+
+describe("MarkdownDocument", () => {
+	it("wraps an intermediate document and exposes metadata", async () => {
+		const doc = await MarkdownParser.encode(
+			new TextEncoder().encode("# Title\n\nSome content"),
+		);
+		const mdDoc = new MarkdownDocument(doc);
+		expect(mdDoc.getTitle()).toBe("Title");
+		expect(mdDoc.getId()).toBe("markdown-parser-document");
+		expect(mdDoc.getIntermediateDocument()).toBe(doc);
+	});
+
+	it("getPages returns MarkdownPage instances", async () => {
+		const doc = await MarkdownParser.encode(
+			new TextEncoder().encode("# Hello"),
+		);
+		const mdDoc = new MarkdownDocument(doc);
+		const pages = await mdDoc.getPages();
+		expect(pages).toHaveLength(1);
+		expect(pages[0]).toBeInstanceOf(MarkdownPage);
+	});
+
+	it("getPage returns a specific page by number", async () => {
+		const doc = await MarkdownParser.encode(
+			new TextEncoder().encode("# Hello"),
+		);
+		const mdDoc = new MarkdownDocument(doc);
+		const page = await mdDoc.getPage(1);
+		expect(page).toBeDefined();
+		expect(page!.getNumber()).toBe(1);
+	});
+
+	it("getPage returns undefined for nonexistent page", async () => {
+		const doc = await MarkdownParser.encode(
+			new TextEncoder().encode("# Hello"),
+		);
+		const mdDoc = new MarkdownDocument(doc);
+		const page = await mdDoc.getPage(999);
+		expect(page).toBeUndefined();
+	});
+
+	it("getOutline returns undefined when no outline exists", async () => {
+		const doc = await MarkdownParser.encode(
+			new TextEncoder().encode("Plain text without headings"),
+		);
+		const mdDoc = new MarkdownDocument(doc);
+		expect(mdDoc.getOutline()).toBeUndefined();
+	});
+});
+
+describe("MarkdownPage", () => {
+	it("getNumber returns the page number", async () => {
+		const doc = await MarkdownParser.encode(
+			new TextEncoder().encode("# Hello"),
+		);
+		const mdDoc = new MarkdownDocument(doc);
+		const page = (await mdDoc.getPages())[0];
+		expect(page.getNumber()).toBe(1);
+	});
+
+	it("getSize returns scaled dimensions", async () => {
+		const doc = await MarkdownParser.encode(
+			new TextEncoder().encode("# Hello"),
+		);
+		const mdDoc = new MarkdownDocument(doc);
+		const page = (await mdDoc.getPages())[0];
+		const size = page.getSize(2);
+		expect(size.x).toBeGreaterThan(0);
+		expect(size.y).toBeGreaterThan(0);
+	});
+
+	it("getPureText returns the markdown content", async () => {
+		const source = "# Hello\n\nSome content";
+		const doc = await MarkdownParser.encode(new TextEncoder().encode(source));
+		const mdDoc = new MarkdownDocument(doc);
+		const page = (await mdDoc.getPages())[0];
+		const text = await page.getPureText();
+		expect(text).toContain("# Hello");
+		expect(text).toContain("Some content");
 	});
 });
