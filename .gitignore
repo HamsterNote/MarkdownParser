@@ -42,4 +42,5 @@ coverage/
 
 # 工具生成的配置和缓存
 .opencode/
+.omo/
 .specify/
