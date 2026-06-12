@@ -1,0 +1,58 @@
+name: PR CI (tests & build)
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: read
+
+# 使用 PR 的 head SHA 作为并发组，确保同一 PR 的多次推送会取消之前的运行
+concurrency:
+  group: pr-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  pr-checks:
+    name: Test and Build
+    runs-on: ubuntu-latest
+    steps:
+      # 拉取代码
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 设置 Node.js 20 并启用 yarn 缓存
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      # 安装依赖（使用 frozen-lockfile 确保一致性）
+      - name: Install dependencies
+        run: |
+          corepack enable
+          yarn --version
+          yarn install --frozen-lockfile
+
+      # 运行 lint 检查
+      - name: Run lint
+        run: |
+          yarn lint
+
+      # 运行单元测试
+      - name: Run unit tests
+        run: |
+          yarn test
+
+      # 构建项目（库 + 类型定义）
+      - name: Build (lib + types)
+        run: |
+          yarn build:all
+
+      # 验证 npm pack 是否正常（干运行）
+      - name: Verify npm pack (dry-run)
+        run: |
+          npm pack --dry-run
