@@ -1,0 +1,116 @@
+name: Sync master to dev
+
+# 触发条件：
+# 1. 直接推送到 master/main 分支
+# 2. 向 master/main 分支发起 PR（opened/synchronize/reopened 事件）
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# 使用固定并发组，确保同步操作不会并行执行
+concurrency:
+  group: sync-master-to-dev
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # 仅在以下情况执行：
+    # - 非 PR 事件（即直接推送）
+    # - PR 来自同一仓库（非 fork）
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    name: Merge master/main into dev
+    runs-on: ubuntu-latest
+    steps:
+      # 拉取完整 git 历史（合并需要）
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 配置 git 用户信息（用于自动提交）
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # 获取所有远程分支
+      - name: Fetch branches
+        run: |
+          git remote set-url origin "${{ github.server_url }}/${{ github.repository }}.git"
+          git fetch origin --prune
+          git fetch origin dev || true
+
+      # 检测源分支（推送事件取当前分支，PR 事件取 base 分支）
+      - name: Detect source branch
+        id: detect
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SOURCE_BRANCH="${{ github.base_ref }}"
+          else
+            SOURCE_BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+
+          if [ -z "$SOURCE_BRANCH" ]; then
+            echo "::error::Unable to determine source branch."
+            exit 1
+          fi
+
+          if ! git ls-remote --exit-code --heads origin "$SOURCE_BRANCH" >/dev/null 2>&1; then
+            echo "::error::Source branch '$SOURCE_BRANCH' does not exist on origin."
+            exit 1
+          fi
+
+          echo "name=$SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
+
+      # 检出 dev 分支（如果不存在则基于源分支创建）
+      - name: Checkout dev branch (create if missing)
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --heads origin dev >/dev/null 2>&1; then
+            git checkout -B dev origin/dev
+          else
+            echo "dev branch does not exist on origin, creating it based on ${{ steps.detect.outputs.name }}"
+            git checkout -B dev "origin/${{ steps.detect.outputs.name }}"
+            git push -u origin dev
+          fi
+
+      # 将源分支合并到 dev
+      - name: Merge source branch into dev
+        shell: bash
+        run: |
+          set -e
+          BASE_BRANCH="${{ steps.detect.outputs.name }}"
+          echo "Merging origin/${BASE_BRANCH} into dev..."
+          git fetch origin "$BASE_BRANCH"
+
+          if git merge --no-edit "origin/${BASE_BRANCH}"; then
+            echo "Merge succeeded."
+          else
+            echo "::error::Merge conflict when merging ${BASE_BRANCH} into dev. Please resolve conflicts manually."
+            git merge --abort || true
+            exit 1
+          fi
+
+      # 推送更新到 dev（如果有新的提交）
+      - name: Push changes to dev (if any)
+        shell: bash
+        run: |
+          if [ -n "$(git log --oneline origin/dev..HEAD)" ]; then
+            echo "Pushing updates to origin/dev..."
+            git push origin dev
+          else
+            echo "No updates needed. dev is already up to date with ${{ steps.detect.outputs.name }}"
+          fi
