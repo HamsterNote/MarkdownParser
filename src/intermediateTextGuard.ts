@@ -6,7 +6,9 @@ type IntermediateTextShape = {
   fontSize?: unknown
 }
 
-export function isIntermediateTextLike(value: unknown): value is IntermediateText {
+export function isIntermediateTextLike(
+  value: unknown
+): value is IntermediateText {
   if (typeof value !== 'object' || value === null) {
     return false
   }

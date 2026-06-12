@@ -1,4 +1,7 @@
-import type { IntermediateDocument, IntermediateOutline } from '@hamster-note/types'
+import type {
+  IntermediateDocument,
+  IntermediateOutline
+} from '@hamster-note/types'
 import { MarkdownPage } from './MarkdownPage.js'
 
 export class MarkdownDocument {
@@ -10,7 +13,8 @@ export class MarkdownDocument {
   }
 
   async getPage(pageNumber: number): Promise<MarkdownPage | undefined> {
-    const pagePromise = this.intermediateDocument.getPageByPageNumber(pageNumber)
+    const pagePromise =
+      this.intermediateDocument.getPageByPageNumber(pageNumber)
     if (!pagePromise) return undefined
 
     const page = await pagePromise

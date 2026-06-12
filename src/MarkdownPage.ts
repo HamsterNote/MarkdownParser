@@ -11,7 +11,7 @@ export class MarkdownPage {
   getSize(scale: number): Number2 {
     return {
       x: this.intermediatePage.width * scale,
-      y: this.intermediatePage.height * scale,
+      y: this.intermediatePage.height * scale
     }
   }
 

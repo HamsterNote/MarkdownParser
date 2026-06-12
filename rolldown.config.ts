@@ -10,6 +10,6 @@ export default {
     'mdast-util-from-markdown',
     'mdast-util-gfm',
     'mdast-util-to-markdown',
-    'micromark-extension-gfm',
-  ],
+    'micromark-extension-gfm'
+  ]
 }
