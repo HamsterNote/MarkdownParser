@@ -1,6 +1,6 @@
 {
   "name": "@hamster-note/markdown-parser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Markdown parser package workspace for HamsterNote.",
   "scripts": {
     "dev": "http-server -p 8170",
