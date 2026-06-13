@@ -1,7 +1,16 @@
 {
   "name": "@hamster-note/markdown-parser",
-  "version": "0.1.2-beta.1",
+  "version": "0.1.2-beta.2",
   "description": "Markdown parser package workspace for HamsterNote.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HamsterNote/MarkdownParser.git"
+  },
+  "homepage": "https://github.com/HamsterNote/MarkdownParser#readme",
+  "bugs": {
+    "url": "https://github.com/HamsterNote/MarkdownParser/issues"
+  },
+  "license": "MIT",
   "scripts": {
     "dev": "http-server -p 8170",
     "build": "rolldown --config rolldown.config.ts",
