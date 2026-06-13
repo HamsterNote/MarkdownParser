@@ -1,0 +1,102 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify tag and prepare env
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "Detected tag: v$TAG"
+
+          VERSION="$TAG"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          PKG_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).version)")
+
+          if [[ "$PKG_VERSION" =~ -beta ]]; then
+            echo "PUBLISH_TAG=beta" >> "$GITHUB_ENV"
+            echo "Version type: Beta Pre-release"
+          else
+            echo "PUBLISH_TAG=latest" >> "$GITHUB_ENV"
+            echo "Version type: Release"
+          fi
+
+          echo "Tag version: $VERSION"
+          echo "Package version: $PKG_VERSION"
+          echo "Publish tag: $PUBLISH_TAG"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: yarn
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          yarn --version
+          yarn install --frozen-lockfile
+
+      - name: Check if version already published
+        id: version
+        shell: bash
+        run: |
+          PKG_NAME=$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).name)")
+          VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).version)")
+          echo "Package: $PKG_NAME"
+          echo "Version: $VERSION"
+          if npm view "$PKG_NAME@$VERSION" version > /dev/null 2>&1; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "Version $VERSION already exists on npm, skip publishing."
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "Version $VERSION not found on npm, will publish."
+          fi
+
+      - name: Build project
+        if: steps.version.outputs.should_publish == 'true'
+        run: |
+          yarn build
+
+      - name: Publish to npm
+        if: steps.version.outputs.should_publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish --provenance --tag "$PUBLISH_TAG" --access public
+
+      - name: Ensure pre-release dist-tag
+        if: env.PUBLISH_TAG == 'beta' && steps.version.outputs.should_publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          PKG_NAME=$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).name)")
+          VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).version)")
+          echo "Ensure dist-tag: ${PUBLISH_TAG} -> $VERSION"
+          npm dist-tag add "$PKG_NAME@$VERSION" "$PUBLISH_TAG" || true
+          npm dist-tag ls "$PKG_NAME"
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.should_publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
